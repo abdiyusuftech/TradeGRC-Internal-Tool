@@ -44,15 +44,10 @@ export const RecordPanels: React.FC<RecordPanelsProps> = ({
         </span>
 
         {/* Panel Header */}
-        <div className="flex items-baseline justify-between gap-3 flex-wrap pb-2.5 border-b border-[#14212E]/20">
-          <div className="flex items-center gap-2">
-            <WsibLogo className="w-5 h-5 shrink-0" />
-            <span className="font-['Archivo'] font-bold text-[14px] sm:text-[14.5px] tracking-[.01em] uppercase text-[#1B2126]">
-              WSIB Clearances
-            </span>
-          </div>
-          <span className="font-mono text-[10.5px] sm:text-[11px] tracking-[.05em] uppercase text-[#7C8D99]">
-            Looked up {record.wsibStamp}
+        <div className="flex items-center gap-2 pb-2.5 border-b border-[#14212E]/20">
+          <WsibLogo className="w-5 h-5 shrink-0" />
+          <span className="font-['Archivo'] font-bold text-[14px] sm:text-[14.5px] tracking-[.01em] uppercase text-[#1B2126]">
+            WSIB Clearances
           </span>
         </div>
 
@@ -180,15 +175,10 @@ export const RecordPanels: React.FC<RecordPanelsProps> = ({
         </span>
 
         {/* Panel Header */}
-        <div className="flex items-baseline justify-between gap-3 flex-wrap pb-2.5 border-b border-[#14212E]/20">
-          <div className="flex items-center gap-2">
-            <OntarioTrilliumLogo className="w-5 h-5 shrink-0" />
-            <span className="font-['Archivo'] font-bold text-[14px] sm:text-[14.5px] tracking-[.01em] uppercase text-[#1B2126]">
-              Ontario Business Registry
-            </span>
-          </div>
-          <span className="font-mono text-[10.5px] sm:text-[11px] tracking-[.05em] uppercase text-[#7C8D99]">
-            Looked up {record.onbisStamp}
+        <div className="flex items-center gap-2 pb-2.5 border-b border-[#14212E]/20">
+          <OntarioTrilliumLogo className="w-5 h-5 shrink-0" />
+          <span className="font-['Archivo'] font-bold text-[14px] sm:text-[14.5px] tracking-[.01em] uppercase text-[#1B2126]">
+            Ontario Business Registry
           </span>
         </div>
 
