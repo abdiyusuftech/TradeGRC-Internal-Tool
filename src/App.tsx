@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
 import { SAMPLE_CONTRACTORS } from './data/contractors';
 import { ContractorRecord, ComplianceTier } from './types';
 import { calculateRecordVerdict } from './utils/compliance';
@@ -11,10 +12,23 @@ import { WhatHappensNext } from './components/WhatHappensNext';
 import { SearchModal } from './components/SearchModal';
 import { DateScrubberModal } from './components/DateScrubberModal';
 
+// TODO: `token` currently matches ContractorRecord.id (the mock data's key). Once real data is
+// wired in (CLAUDE.md Section 3.2), this route resolves against the live `Results Page Token` field instead.
 export default function App() {
+  return (
+    <Routes>
+      <Route path="/r/:token" element={<RecordPage />} />
+      <Route path="*" element={<Navigate to={`/r/${SAMPLE_CONTRACTORS[0].id}`} replace />} />
+    </Routes>
+  );
+}
+
+function RecordPage() {
+  const { token } = useParams<{ token: string }>();
+  const navigate = useNavigate();
   const [contractors, setContractors] = useState<ContractorRecord[]>(SAMPLE_CONTRACTORS);
-  const [selectedRecordId, setSelectedRecordId] = useState<string>(SAMPLE_CONTRACTORS[0].id);
-  
+  const selectedRecordId = token ?? SAMPLE_CONTRACTORS[0].id;
+
   // Simulation and preview states
   const [currentAsOfDate, setCurrentAsOfDate] = useState<string>('2026-08-29');
   const [forcedVerdict, setForcedVerdict] = useState<string | null>(null);
@@ -125,7 +139,7 @@ export default function App() {
         currentRecord={currentRecord}
         contractors={contractors}
         onSelectContractor={(c) => {
-          setSelectedRecordId(c.id);
+          navigate(`/r/${c.id}`);
           setForcedVerdict(null);
         }}
         onOpenSearch={() => setIsSearchOpen(true)}
@@ -197,7 +211,7 @@ export default function App() {
         onClose={() => setIsSearchOpen(false)}
         contractors={contractors}
         onSelectContractor={(c) => {
-          setSelectedRecordId(c.id);
+          navigate(`/r/${c.id}`);
           setForcedVerdict(null);
         }}
       />
