@@ -193,6 +193,8 @@ The repo is React 19 + Vite + Tailwind, scaffolded through Google AI Studio (`vi
 
 `EditRecordModal.tsx` is a genuinely well-built form — trade/legal name, address, cert number, account status, BIN, registry status, both expiry dates — and it's the closest real answer to "where does data entry happen" (pressure-test blocker #2). But it's **never imported or rendered by `App.tsx`**. There's no button, no state, no path to reach it in the running app. Its `onSave` handler only calls `setContractors(...)`, local React state with no persistence — so even once it's wired in, edits currently vanish on refresh. Two separate gaps, not one: (1) connect the form to the UI, (2) connect the form to a backend.
 
+**Verified in a later pass:** `App.tsx` already contains `handleSaveRecord` and `handleResetToDefault`, fully implemented and matching `EditRecordModal`'s `onSave`/`onResetToDefault` prop signatures exactly — but both are dead code today, called by nothing. Confirmed by a repo-wide grep for `EditRecordModal`: it appears only in its own definition file (`src/components/EditRecordModal.tsx`) and in this document's prose — zero imports, zero usage anywhere else. So the modal-side gap (1) above is smaller than it looks: the callback wiring is already written and ready; what's missing is purely the UI entry point (a button/state to open it) plus, per the still-open question in Section 10, a decision on who that entry point should be visible to. Gap (2), the backend/persistence half, is untouched and separate.
+
 ### 9.3 The data model diverges from Sections 3–4 in specific, concrete ways
 
 | This doc documented | This repo actually has |
@@ -212,7 +214,15 @@ The repo is React 19 + Vite + Tailwind, scaffolded through Google AI Studio (`vi
 
 `WhatHappensNext.tsx` displays `record.provenanceHash` under a shield-check icon labeled "Verified ONBIS & WSIB Data." It's a raw string copied from mock data — no hashing, no signature, no verification logic exists anywhere in the repo. Shipping this as-is shows leads and GCs a cryptographic-looking authenticity claim that verifies nothing, which cuts directly against the project's own established guardrail against overclaiming. This is worth treating as a real risk to resolve before launch, not a cosmetic detail.
 
-### 9.6 What's already right, worth keeping
+### 9.6 There is no router and no per-record URL — a gap that precedes the edit-access question, not one alongside it
+
+`src/main.tsx` mounts `<App />` directly. No routing library is present (`react-router` or equivalent is not a dependency, and no route files exist). Which record is shown is driven entirely by an in-memory `selectedRecordId` React state variable, set via a `<select>` dropdown in `Header.tsx` — there is no per-record URL of any kind.
+
+This directly contradicts how Sections 3.2 and 4 describe the app: `Results Page Token` is documented as "`RECORD_ID()`, used only for the public results page URL" — i.e., the design assumes each record resolves to its own URL (`.../r/<token>`, or similar), which a lead or GC would land on individually. **That URL-per-record model does not exist in this codebase.** Today, the app is a single page holding all sample records in memory, switchable via a dropdown, not a set of individually-addressable public pages.
+
+**Flagging this as needing resolution before, not after, Section 10 item 1 (edit-access).** They're the same underlying architecture decision, not two separate ones: "who can open the edit form" only has a stable answer once "what is the unit of access to a record" is settled. If this stays a single in-memory-state app, there is no meaningful per-record boundary to gate at all — an edit control is either visible to everyone who loads the page or to no one, full stop. If a token-per-record URL model gets built (as Sections 3–4 already assume), edit-access could instead be scoped per URL/token, which is a materially different and more granular answer. Deciding edit-access first, without deciding this, risks answering a question whose shape is about to change.
+
+### 9.7 What's already right, worth keeping
 
 The legal disclaimer copy in `WhatHappensNext.tsx` — "this is not legal advice... not a guarantee of any payment or bid outcome... For anything beyond record-keeping, we'll point you to the right professional" — is careful and correctly scoped, consistent with established copy guardrails. Design tokens (Iron Charcoal `#1B2126`, Terracotta Rust `#C1501C`, Forest `#2F6B4F`) match the established brand system exactly. Neither needs rework.
 
@@ -222,8 +232,7 @@ The legal disclaimer copy in `WhatHappensNext.tsx` — "this is not legal advice
 
 Item 1 from the original list is resolved by Section 9 — no longer a decision, a confirmed fact. What's actually open now:
 
-1. **Auth/edit-access model** — once `EditRecordModal` gets wired into the running app, who can reach it? Right now the answer is "nobody, because it isn't connected to anything" — but that's an accident of it being unfinished, not a decision. This needs an actual answer before it's wired in, not after.
-2. **Whether an internal staff queue-management tool is still wanted at all**, separate from this public page. This repo doesn't provide one and shows no sign of growing into one — confirm whether that's still a real, separate build item or whether it's been deprioritized in favor of getting the public page connected first.
-3. **The concrete interest-signal definition** for Section 5.3 (tag change / reply / booked call / other) — still open, unrelated to the repo findings.
-4. **Locate or re-upload `Airtable_Softr_Build_Specification.md`** if it exists, so Section 3's field list can be completed against the primary source.
-5. **Resolve the `provenanceHash` claim (9.5)** — remove it, or build the verification it implies, before this is shown to a real lead or GC.
+1. **Who can reach the edit form, and does a separate internal staff tool exist — one decision, two names, not two independent questions.** Previously listed as separate items ("auth/edit-access model" and "whether an internal staff queue-management tool is still wanted"), but they're the same underlying call: if a separate internal, staff-only tool is wanted (and built), *that* surface is where editing naturally lives, gated by whoever has access to it — the public page stays read-only. If no separate tool is wanted, then `EditRecordModal` staying on the public page is itself the access decision, and "who can reach it" has to be answered directly for that page. Answering one half without the other risks building the wrong surface. Also depends on Section 9.6 (no router / no per-record URL yet): without a per-record URL, there's no unit smaller than "the whole page" to gate access at, which narrows the available answers on the public-page branch of this decision. Resolve 9.6's architecture question alongside this one, not after it. Right now the practical answer is "nobody, because nothing is wired in" — an accident of it being unfinished, not a decision, and not one to make without your sign-off.
+2. **The concrete interest-signal definition** for Section 5.3 (tag change / reply / booked call / other) — still open, unrelated to the repo findings.
+3. **Locate or re-upload `Airtable_Softr_Build_Specification.md`** if it exists, so Section 3's field list can be completed against the primary source.
+4. **Resolve the `provenanceHash` claim (9.5)** — remove it, or build the verification it implies, before this is shown to a real lead or GC.
