@@ -1,22 +1,15 @@
 import React from 'react';
-import { ShieldCheck, ArrowRight, ExternalLink } from 'lucide-react';
-import { ContractorRecord, VerdictStyle } from '../types';
+import { VerdictStyle } from '../types';
 
 interface WhatHappensNextProps {
-  record: ContractorRecord;
   verdict: VerdictStyle;
-  isUrgent: boolean;
   showScope?: boolean;
 }
 
 export const WhatHappensNext: React.FC<WhatHappensNextProps> = ({
-  record,
   verdict,
-  isUrgent,
   showScope = true
 }) => {
-  const currentYear = new Date().getFullYear();
-
   return (
     <div id="what-happens-next-section" className="mt-10">
       
@@ -48,21 +41,6 @@ export const WhatHappensNext: React.FC<WhatHappensNextProps> = ({
         )}
 
       </div>
-
-      {/* Provenance and Integrity Verification Hash */}
-      {record.provenanceHash && (
-        <div className="mt-7 pt-4 border-t border-dashed border-[#14212E]/16 flex items-center justify-between gap-3 sm:gap-4 flex-wrap text-[#7C8D99]">
-          <div className="flex items-start sm:items-center gap-2 font-mono text-[10.5px] sm:text-[11px] tracking-[.05em] uppercase">
-            <ShieldCheck className="w-4 h-4 text-[#2F6B4F] shrink-0 mt-0.5 sm:mt-0" />
-            <span className="break-all sm:break-normal">
-              Digital Registry Provenance: <strong className="text-[#4C5A67] font-medium font-mono lowercase break-all">{record.provenanceHash}</strong>
-            </span>
-          </div>
-          <div className="font-mono text-[10.5px] sm:text-[11px] uppercase tracking-[.05em]">
-            Verified ONBIS &amp; WSIB Data
-          </div>
-        </div>
-      )}
 
       {/* Legal Disclaimer */}
       <div className="mt-5 pt-4 border-t border-dashed border-[#14212E]/16">

@@ -1,239 +1,181 @@
-import React, { useState, useMemo } from 'react';
-import { Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
-import { SAMPLE_CONTRACTORS } from './data/contractors';
-import { ContractorRecord, ComplianceTier } from './types';
-import { calculateRecordVerdict } from './utils/compliance';
+import React, { useEffect, useState } from 'react';
+import { Routes, Route, useParams } from 'react-router-dom';
+import { ComplianceRecordView } from './types';
+import { fetchComplianceRecord } from './lib/api';
+import { buildComplianceRecordView, buildOverallVerdict } from './utils/compliance';
 import { Header } from './components/Header';
 import { RecordHeader } from './components/RecordHeader';
 import { VerdictBanner } from './components/VerdictBanner';
 import { StatusBadges } from './components/StatusBadges';
 import { RecordPanels } from './components/RecordPanels';
 import { WhatHappensNext } from './components/WhatHappensNext';
-import { SearchModal } from './components/SearchModal';
-import { DateScrubberModal } from './components/DateScrubberModal';
 
-// TODO: `token` currently matches ContractorRecord.id (the mock data's key). Once real data is
-// wired in (CLAUDE.md Section 3.2), this route resolves against the live `Results Page Token` field instead.
 export default function App() {
   return (
     <Routes>
       <Route path="/r/:token" element={<RecordPage />} />
-      <Route path="*" element={<Navigate to={`/r/${SAMPLE_CONTRACTORS[0].id}`} replace />} />
+      <Route path="*" element={<NoTokenPage />} />
     </Routes>
   );
 }
 
+function PageShell({ tradeName, children }: { tradeName: string; children: React.ReactNode }) {
+  const currentYear = new Date().getFullYear();
+  return (
+    <div className="min-h-screen bg-[#EAEEEE] text-[#16222C] flex flex-col font-sans">
+      <Header tradeName={tradeName} onPrint={() => window.print()} />
+      <main className="flex-1 w-full max-w-[1080px] mx-auto px-4 sm:px-6 pb-20">{children}</main>
+      <footer className="bg-[#1B2126] text-[#A3AFB8] border-t border-[#2C343B] mt-auto">
+        <div className="max-w-[1080px] mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3 flex-wrap font-mono text-[11px] tracking-[.07em] uppercase">
+          <span>&copy; {currentYear} TradeGRC</span>
+          <span>Public Record Engine</span>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+function NoTokenPage() {
+  return (
+    <PageShell tradeName="TradeGRC">
+      <div className="pt-16 sm:pt-24 max-w-[520px] mx-auto text-center">
+        <h1 className="font-['Archivo'] font-extrabold text-[22px] sm:text-[26px] text-[#1B2126]">
+          This link needs a record
+        </h1>
+        <p className="text-[14px] text-[#4C5A67] leading-[1.6] mt-3">
+          Compliance records are reached through the individual link sent for that business. If you
+          followed a link here and landed on this page instead, the link may be incomplete or out of
+          date.
+        </p>
+      </div>
+    </PageShell>
+  );
+}
+
+function NotFoundPage() {
+  return (
+    <PageShell tradeName="TradeGRC">
+      <div className="pt-16 sm:pt-24 max-w-[520px] mx-auto text-center">
+        <h1 className="font-['Archivo'] font-extrabold text-[22px] sm:text-[26px] text-[#1B2126]">
+          Record not found
+        </h1>
+        <p className="text-[14px] text-[#4C5A67] leading-[1.6] mt-3">
+          This link doesn&apos;t match a record on file. Double-check the link, or reach out to
+          whoever sent it to you.
+        </p>
+      </div>
+    </PageShell>
+  );
+}
+
+function ErrorPage({ message }: { message: string }) {
+  return (
+    <PageShell tradeName="TradeGRC">
+      <div className="pt-16 sm:pt-24 max-w-[520px] mx-auto text-center">
+        <h1 className="font-['Archivo'] font-extrabold text-[22px] sm:text-[26px] text-[#1B2126]">
+          Lookup failed
+        </h1>
+        <p className="text-[14px] text-[#4C5A67] leading-[1.6] mt-3">
+          Something went wrong reading this record. Try again in a moment.
+        </p>
+        <p className="text-[12px] text-[#7C8D99] mt-4 font-mono">{message}</p>
+      </div>
+    </PageShell>
+  );
+}
+
+function LoadingPage() {
+  return (
+    <PageShell tradeName="TradeGRC">
+      <div className="pt-16 sm:pt-24 max-w-[520px] mx-auto text-center">
+        <p className="text-[14px] text-[#4C5A67]">Reading the public record…</p>
+      </div>
+    </PageShell>
+  );
+}
+
+// CLAUDE.md Section 8.3: without consent, this page must never render a real WSIB or Corporate
+// finding — only this warm, non-committal state. Never a dead page, never the actual status.
+function GatedRecordPage({ tradeName }: { tradeName: string }) {
+  return (
+    <PageShell tradeName={tradeName}>
+      <div className="pt-16 sm:pt-24 max-w-[560px] mx-auto text-center">
+        <h1 className="font-['Archivo'] font-extrabold text-[22px] sm:text-[26px] text-[#1B2126]">
+          {tradeName}
+        </h1>
+        <p className="text-[14px] text-[#4C5A67] leading-[1.6] mt-3">
+          A compliance review is underway for this business. We&apos;ll be in touch once it&apos;s
+          ready to share.
+        </p>
+      </div>
+    </PageShell>
+  );
+}
+
+type RecordPageState =
+  | { kind: 'loading' }
+  | { kind: 'not_found' }
+  | { kind: 'gated'; tradeName: string }
+  | { kind: 'error'; message: string }
+  | { kind: 'ok'; view: ComplianceRecordView };
+
 function RecordPage() {
   const { token } = useParams<{ token: string }>();
-  const navigate = useNavigate();
-  const [contractors, setContractors] = useState<ContractorRecord[]>(SAMPLE_CONTRACTORS);
-  const selectedRecordId = token ?? SAMPLE_CONTRACTORS[0].id;
-
-  // Simulation and preview states
-  const [currentAsOfDate, setCurrentAsOfDate] = useState<string>('2026-08-29');
-  const [forcedVerdict, setForcedVerdict] = useState<string | null>(null);
-  
-  // Display settings
-  const [showThreshold, setShowThreshold] = useState<boolean>(true);
-  const [showScope, setShowScope] = useState<boolean>(true);
-
-  // Modals
-  const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
-  const [isSimulatorOpen, setIsSimulatorOpen] = useState<boolean>(false);
-
-  // Copy feedback
+  const [state, setState] = useState<RecordPageState>({ kind: 'loading' });
   const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
 
-  // Current active contractor
-  const currentRecord = useMemo(() => {
-    return contractors.find((c) => c.id === selectedRecordId) || contractors[0];
-  }, [contractors, selectedRecordId]);
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    setState({ kind: 'loading' });
 
-  // Dynamic calculated verdict
-  const calculated = useMemo(() => {
-    const res = calculateRecordVerdict(currentRecord, currentAsOfDate);
-
-    if (forcedVerdict) {
-      const forceMap: Record<string, { word: string; bg: string; spine: string; fg: string; line: string }> = {
-        'Clear': {
-          word: 'Clear',
-          bg: '#E1EEE6',
-          spine: '#E1EEE6',
-          fg: '#2F6B4F',
-          line: `Nothing needs action today. Next date on either record is ${currentRecord.certValidTo || '19-Nov-2026'}.`
-        },
-        'Caution': {
-          word: 'Caution',
-          bg: '#DCE3E3',
-          spine: 'repeating-linear-gradient(180deg, #C1501C 0 7px, #DCE3E3 7px 12px)',
-          fg: '#9C3E14',
-          line: 'Both records stand, but a date is close enough to watch. See below.'
-        },
-        'Action needed': {
-          word: 'Action needed',
-          bg: '#F3DCCB',
-          spine: '#C1501C',
-          fg: '#9C3E14',
-          line: 'One item needs attention before it lapses. See below.'
-        },
-        'Lapsed': {
-          word: 'Lapsed',
-          bg: '#F3DCCB',
-          spine: '#C1501C',
-          fg: '#9C3E14',
-          line: 'A record has already expired and reads that way to anyone checking.'
-        },
-        'Incomplete': {
-          word: 'Incomplete',
-          bg: '#EAEEEE',
-          spine: '#4C5A67',
-          fg: '#4C5A67',
-          line: 'A record could not be read at the time of this check.'
-        }
-      };
-
-      if (forceMap[forcedVerdict]) {
-        return {
-          ...res,
-          verdict: {
-            ...res.verdict,
-            ...forceMap[forcedVerdict]
-          }
-        };
+    fetchComplianceRecord(token).then((result) => {
+      if (cancelled) return;
+      if (result.kind === 'ok') {
+        const todayISO = new Date().toISOString().slice(0, 10);
+        setState({ kind: 'ok', view: buildComplianceRecordView(result.data, todayISO) });
+      } else if (result.kind === 'gated') {
+        setState({ kind: 'gated', tradeName: result.tradeName });
+      } else if (result.kind === 'not_found') {
+        setState({ kind: 'not_found' });
+      } else {
+        setState({ kind: 'error', message: result.message });
       }
-    }
+    });
 
-    return res;
-  }, [currentRecord, currentAsOfDate, forcedVerdict]);
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   const handleCopyText = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     setCopiedLabel(label);
-    setTimeout(() => {
-      setCopiedLabel(null);
-    }, 2000);
+    setTimeout(() => setCopiedLabel(null), 2000);
   };
 
-  const handleSaveRecord = (updated: ContractorRecord) => {
-    setContractors((prev) =>
-      prev.map((c) => (c.id === updated.id ? updated : c))
-    );
-  };
+  if (state.kind === 'loading') return <LoadingPage />;
+  if (state.kind === 'not_found') return <NotFoundPage />;
+  if (state.kind === 'error') return <ErrorPage message={state.message} />;
+  if (state.kind === 'gated') return <GatedRecordPage tradeName={state.tradeName} />;
 
-  const handleResetToDefault = () => {
-    const original = SAMPLE_CONTRACTORS.find((c) => c.id === currentRecord.id);
-    if (original) {
-      setContractors((prev) =>
-        prev.map((c) => (c.id === original.id ? original : c))
-      );
-    }
-  };
-
-  const currentYear = new Date().getFullYear();
+  const { view } = state;
+  const verdict = buildOverallVerdict(view);
 
   return (
-    <div className="min-h-screen bg-[#EAEEEE] text-[#16222C] flex flex-col font-sans">
-      
-      {/* Top Application Bar */}
-      <Header
-        currentRecord={currentRecord}
-        contractors={contractors}
-        onSelectContractor={(c) => {
-          navigate(`/r/${c.id}`);
-          setForcedVerdict(null);
-        }}
-        onOpenSearch={() => setIsSearchOpen(true)}
-        onOpenSimulator={() => setIsSimulatorOpen(true)}
-        onPrint={() => window.print()}
-      />
+    <PageShell tradeName={view.tradeName}>
+      <RecordHeader record={view} />
+      <VerdictBanner verdict={verdict} />
+      <StatusBadges wsibField={view.wsib.field} corporateField={view.corporate.field} />
+      <RecordPanels record={view} onCopyText={handleCopyText} copiedLabel={copiedLabel} />
+      <WhatHappensNext verdict={verdict} />
 
-      {/* Main Single Document Canvas */}
-      <main className="flex-1 w-full max-w-[1080px] mx-auto px-4 sm:px-6 pb-20">
-        
-        {/* Document Header with Public Provenance */}
-        <RecordHeader
-          record={currentRecord}
-          currentAsOfDate={currentAsOfDate}
-        />
-
-        {/* Overall Status Banner */}
-        <VerdictBanner verdict={calculated.verdict} />
-
-        {/* 2-Column Status Indicators */}
-        <StatusBadges
-          certPill={calculated.certPill}
-          regPill={calculated.regPill}
-          certDaysCopy={calculated.certDaysCopy}
-          regDaysCopy={calculated.regDaysCopy}
-          showThreshold={showThreshold}
-        />
-
-        {/* Dual Primary Public Record Panels */}
-        <RecordPanels
-          record={currentRecord}
-          onCopyText={handleCopyText}
-          copiedLabel={copiedLabel}
-        />
-
-        {/* What Happens Next & Legal Disclaimers */}
-        <WhatHappensNext
-          record={currentRecord}
-          verdict={calculated.verdict}
-          isUrgent={calculated.isUrgent}
-          showScope={showScope}
-        />
-
-      </main>
-
-      {/* Official Ledger Footer */}
-      <footer className="bg-[#1B2126] text-[#A3AFB8] border-t border-[#2C343B] mt-auto">
-        <div className="max-w-[1080px] mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3 flex-wrap font-mono text-[11px] tracking-[.07em] uppercase">
-          <span>&copy; {currentYear} TradeGRC</span>
-          <div className="flex items-center gap-3">
-            <span>Ref {currentRecord.reference} &nbsp;/&nbsp; TradeGRC-ON</span>
-            <span className="hidden sm:inline text-[#7C8D99]">&bull;</span>
-            <span className="hidden sm:inline text-[#7C8D99]">Public Record Engine</span>
-          </div>
-        </div>
-      </footer>
-
-      {/* Copy Notification Toast */}
       {copiedLabel && (
         <div className="fixed bottom-6 right-6 z-50 bg-[#1B2126] text-white font-mono text-[12px] px-3.5 py-2 rounded shadow-lg border border-[#3A454E] flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-150">
           <span className="w-2 h-2 rounded-full bg-[#2F6B4F]" />
           <span>Copied {copiedLabel} to clipboard</span>
         </div>
       )}
-
-      {/* Interactive Modals */}
-      <SearchModal
-        isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
-        contractors={contractors}
-        onSelectContractor={(c) => {
-          navigate(`/r/${c.id}`);
-          setForcedVerdict(null);
-        }}
-      />
-
-      <DateScrubberModal
-        isOpen={isSimulatorOpen}
-        onClose={() => setIsSimulatorOpen(false)}
-        currentAsOfDate={currentAsOfDate}
-        onChangeAsOfDate={(d) => {
-          setCurrentAsOfDate(d);
-          setForcedVerdict(null);
-        }}
-        forcedVerdict={forcedVerdict}
-        onSetForcedVerdict={setForcedVerdict}
-        certValidToISO={currentRecord.certValidToISO}
-        registrationExpiryISO={currentRecord.registrationExpiryISO}
-        onReset={() => {
-          setCurrentAsOfDate(currentRecord.checkedISO);
-          setForcedVerdict(null);
-        }}
-      />
-
-    </div>
+    </PageShell>
   );
 }
