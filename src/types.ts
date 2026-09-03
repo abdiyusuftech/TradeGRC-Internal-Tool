@@ -52,8 +52,9 @@ export interface ContractorRecord {
   notes?: string;
 }
 
-// --- Real-data types (CLAUDE.md Section 3.2). ContractorRecord above stays only for the
-// disconnected EditRecordModal/TasteAuditModal — the live record page uses these instead. ---
+// --- Real-data types (CLAUDE.md Section 3.2). ContractorRecord above stays only for
+// SearchModal.tsx and its mock data source in data/contractors.ts — the live record page
+// uses these instead. ---
 
 export type StatusCategory = 'clear' | 'flagged' | 'inconclusive' | 'pending' | 'blocked';
 
