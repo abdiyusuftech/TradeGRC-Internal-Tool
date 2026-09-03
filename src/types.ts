@@ -63,6 +63,10 @@ export interface FieldDisplay {
   pill: PillStyle | null;
   copy: string;
   footnote: string | null;
+  // True only when category is 'clear' AND a real expiry date backed the tier/copy above — false
+  // for the no-date fallback (which still shows a CLEAR pill, just not one tracking any date), so
+  // callers can tell "genuinely tracked, comfortably far out" apart from "nothing on file at all."
+  hasExpiryDate: boolean;
 }
 
 export interface ComplianceRecordView {

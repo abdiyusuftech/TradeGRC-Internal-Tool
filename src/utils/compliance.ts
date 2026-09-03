@@ -134,7 +134,7 @@ function buildField(
   if (category === 'blocked') {
     // Renders blank, no badge — CLAUDE.md 8.1/8.2 treat this as a search that never ran, distinct
     // from a completed negative result.
-    return { category, rawValue: status, pill: null, copy: '', footnote: null };
+    return { category, rawValue: status, pill: null, copy: '', footnote: null, hasExpiryDate: false };
   }
 
   if (category !== 'clear') {
@@ -144,6 +144,7 @@ function buildField(
       pill: getCategoryPill(category),
       copy: categoryCopy(category),
       footnote,
+      hasExpiryDate: false,
     };
   }
 
@@ -155,6 +156,7 @@ function buildField(
     pill: getExpiryTierPill(tier),
     copy: formatExpiryCopy(days, tier),
     footnote,
+    hasExpiryDate: days !== null,
   };
 }
 
