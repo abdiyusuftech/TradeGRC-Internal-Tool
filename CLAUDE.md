@@ -23,6 +23,9 @@ If you've already read an earlier version of this file (as `CLAUDE.md` in the re
 - **Section 3.2's `Phone (Match Key)` instruction was wrong and is now corrected**, from "reads for logic only" to "not needed by this front end" — the real, deployed proxy never references it anywhere; the record ID is the lookup key end to end.
 - **Section 9.3's `classSubclass` finding is now resolved, not just noted.** It exists only inside the disconnected `ContractorRecord` type alongside `EditRecordModal` — confirmed dead code, not "ahead of" anything.
 - **The connection-mechanism item in Section 11 — the single biggest open item since this document's first review — is resolved.** A base-scoped, read-only Airtable PAT lives in Vercel's environment only, never reaches the client bundle, and every fetch is real-time per request against the live record.
+- **A multi-jurisdiction display bookmark is added (Section 8.4)** — not urgent, Ontario is still the only active jurisdiction, but the actual code-level gap (hardcoded logos *and* hardcoded panel titles, not just an icon) is recorded now so it isn't rediscovered from scratch later.
+- **Section 6.3 now carries a marked recommendation, not a decision, on self-search's page architecture** — whether it belongs standalone rather than on the personalized results page itself, with the reasoning laid out and flagged as needing confirmation.
+- **Section 9.2 is corrected, not just updated:** the `handleSaveRecord`/`handleResetToDefault` handlers this document previously said were dead-but-present no longer exist in the codebase at all — removed as a byproduct of the real-data rewrite, not by a deliberate decision about them specifically. Only `EditRecordModal.tsx` itself remains.
 
 ---
 
@@ -44,7 +47,7 @@ This has been underspecified in every prior version of this document, and it mat
 
 ### 1.3 No edit capability belongs in this front end, in any form, ever — permanently resolved
 
-This was an open question in earlier work; it is now closed by explicit decision, not by default. **Corrections to compliance data happen directly in the Airtable dashboard. That is outside this repository's scope entirely.** Not gated, not flagged with a "no access control yet" notice — the capability is absent. `EditRecordModal.tsx` and the `handleSaveRecord`/`handleResetToDefault` handlers in `App.tsx` (see Section 9) are permanently out of scope and must not be wired in under any circumstance. Whether those files should be deleted outright or left in place marked as dead code is still open — see Section 12.
+This was an open question in earlier work; it is now closed by explicit decision, not by default. **Corrections to compliance data happen directly in the Airtable dashboard. That is outside this repository's scope entirely.** Not gated, not flagged with a "no access control yet" notice — the capability is absent. `EditRecordModal.tsx` (see Section 9) is permanently out of scope and must not be wired in under any circumstance. Whether the file should be deleted outright or left in place marked as dead code is still open — see Section 12.
 
 **A distinction worth holding onto precisely, since it's easy to conflate with the point above:** self-search (1.1, 5.3) is not editing. It's *creating a lead-interest signal and, where no record exists yet, a new queued record* — a fundamentally different action from *correcting existing compliance findings*. Do not read "no edit, ever" as blocking self-search. They are different capabilities answering different questions.
 
@@ -197,6 +200,8 @@ Per Section 1.1, this is a deliberate, intended feature: a visitor searching for
 
 **A component already exists for this, but isn't a ready-to-reconnect starting point.** `SearchModal.tsx` was built early and, during the real-data rewiring, was deliberately disconnected from the app rather than left active — a "browse all records" directory doesn't belong on a real per-token public page, per direct instruction in that session. It currently searches the old hardcoded mock array and nothing else. When self-search gets built, treat this as a component to repurpose for querying live Airtable data, not one to simply switch back on.
 
+**A recommendation on page architecture, not yet confirmed — flagged as such rather than silently settled:** self-search likely belongs on a standalone page, not embedded in the nav of the personalized per-token results page. Reasoning: a visible "search any business" bar on the same page a lead's personalized link points to risks diluting the "this was found specifically about you" framing, and makes it obvious this tool can check *other* businesses too — inviting exactly the competitor/back-channel-diligence exposure the consent rule (Section 8.3) exists to guard against. A separate page can still be linked to deliberately from the results page, rather than displayed as a standing invitation. This is a real product call with a defensible other side, not an obvious default — confirm before treating it as final.
+
 **What's genuinely still open here, not resolved by this section:**
 - **The matching/dedup strategy** (Section 4) — company name is the only input a self-searcher has, and it's the one identifier this schema deliberately avoids trusting.
 - **The entry-channel field** (Section 3.2) doesn't exist — if self-search leads should be treated as warmer than cold ones, as Section 1.1 implies, this needs to be built.
@@ -257,6 +262,16 @@ Previously, `Consent Status` was understood only as a gate on whether Sendr gene
 
 **What this does not affect:** Section 6.2's Sendr gate is unchanged and was already correct — this section extends the same underlying principle to a surface that previously had no protection at all, it doesn't modify the automation.
 
+### 8.4 Multi-jurisdiction display — bookmarked, not yet needed
+
+Not urgent — Ontario is the only active jurisdiction today, and this is explicitly deferred until Alberta/BC are real. Recorded now so it isn't rediscovered from scratch later.
+
+**Confirmed against the actual code:** both jurisdiction logos are hand-drawn, hardcoded SVG components in `Logos.tsx` (`WsibLogo`, `OntarioTrilliumLogo`) with no jurisdiction abstraction at all. The `Jurisdiction` field already flows through the entire data pipeline (`api.ts` → `compliance.ts` → the record view object) but is never read by a single component — fetched, unused. `RecordPanels.tsx` also hardcodes the panel titles themselves ("WSIB Clearances," "Ontario Business Registry") as literal text, not just the logo beside them — swapping only the icon for a future jurisdiction would leave a mismatched header, which would look like an oversight rather than an unbuilt feature.
+
+**The actual entity names, confirmed rather than assumed, for when this becomes real:** Alberta's board operates as **WCB-Alberta**; British Columbia's operates as **WorkSafeBC**.
+
+**The shape of the eventual fix:** a jurisdiction-keyed lookup (jurisdiction → workers'-comp board name + logo, government registry name + logo), read from the already-flowing `Jurisdiction` field, replacing both the hardcoded logo components and the hardcoded panel-title text — not two separate fixes. Ontario stays the only populated entry until Alberta or BC actually launch.
+
 ---
 
 ## 9. Verified Against the Actual Repository (`abdiyusuftech/TradeGRC-Internal-Tool`)
@@ -269,7 +284,7 @@ This section previously said there was no backend at all. That's no longer true.
 
 ### 9.2 The manual-check interaction model exists as UI, but is permanently out of scope
 
-Unchanged from before: `EditRecordModal.tsx` and `App.tsx`'s `handleSaveRecord`/`handleResetToDefault` handlers are still fully built but never imported or called, and per Section 1.3 this stays permanently out of scope by explicit decision, not by accident. Whether these files get deleted or left in place marked as dead code is still open — Section 12.
+**Corrected from an earlier claim in this document, not just updated:** `App.tsx` was completely rewritten during the real-data pass (Section 9.1). The `handleSaveRecord`/`handleResetToDefault` handlers previously documented here no longer exist anywhere in the codebase — confirmed by a repo-wide search, not just an App.tsx check. Only `EditRecordModal.tsx` itself remains, as a fully standalone file referenced nowhere else in the repo. Per Section 1.3 this stays permanently out of scope by explicit decision, not by accident. Whether the file gets deleted or left in place marked as dead code is still open — Section 12.
 
 ### 9.3 What's now resolved, and the one thing that isn't
 
@@ -326,7 +341,7 @@ This section exists because an original Airtable implementation spec document su
 
 - **Automated OBR/WSIB scraping** — not part of this build. Manual, human-performed lookup remains the system of record, a deliberate decision, not an oversight.
 - **`provenanceHash`'s removal as the final answer** (9.5) — it's gone, but whether that's the actual resolution or a placeholder pending real verification (e.g., the certificate-number idea, Section 3.2) was never explicitly confirmed.
-- **Delete vs. mark-dead** for `EditRecordModal.tsx` and its two orphaned handlers (9.2) — explicitly deferred, not decided.
+- **Delete vs. mark-dead** for `EditRecordModal.tsx` (9.2) — the file only now, the handlers it depended on no longer exist — explicitly deferred, not decided.
 - **The Quadrant Tag reconciliation** (Section 7) — open, not decided here.
 - **The stale Sendr webhook payload** (Section 2) — needs re-specifying against the real Section 3 field list before any real connection work happens on that leg specifically (distinct from the now-working Airtable→frontend connection in Section 9).
 - **The Zapier leg** (Section 2, Section 10) — documented per the original spec, never independently verified live.
