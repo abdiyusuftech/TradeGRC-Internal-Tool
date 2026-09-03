@@ -12,10 +12,10 @@
 
 **What this front end replaces:** the public, no-login results page previously described as Airtable/Softr-hosted with a deferred rebuild draft. That deferred rebuild appears to have been superseded by this repository — a from-scratch React/Vite/Tailwind build, not a Softr page. It is the page Sendr's video compositing was expected to read from, and the page a lead or GC lands on.
 
-**Who uses it:** leads and GCs viewing a single company's compliance snapshot. Any staff-facing editing capability that exists in the code (see Section 9) is a data-correction affordance layered onto the public view, not a queue-management tool — there is still no internal, staff-facing control layer for working the WSIB/OBR lookup queue. If that's still wanted, it's a separate, currently unbuilt surface, not something to assume this repo will grow into.
+**Who uses it:** leads and GCs viewing a single company's compliance snapshot. **Resolved:** there is no internal, staff-facing control layer for working the WSIB/OBR lookup queue, and none is wanted — Airtable's own dashboard fills that role, permanently. This repo is not going to grow one; that question is settled, not deferred.
 
 **What this front end is explicitly NOT:**
-- It is **not** a client-facing dashboard in the sense TradeGRC's positioning prohibits — it's a single-record, token-style lookup rather than an ongoing portal a client logs into and returns to. Worth actively confirming this reading holds once editing is actually wired up (see Section 9 — the edit capability exists as code but isn't reachable from the running app yet, so the "who can edit the public record" question hasn't actually been decided by anything, including accident).
+- It is **not** a client-facing dashboard in the sense TradeGRC's positioning prohibits — it's a single-record, token-style lookup rather than an ongoing portal a client logs into and returns to. **Resolved:** no edit capability belongs in this front end, in any form — not gated, not flagged, absent entirely. Corrections to a record happen directly in the Airtable dashboard, outside this repo's scope. See Section 9.2 and Section 10 for the full decision and what it means for the code that already exists.
 - It is **not**, currently, connected to anything — see Section 9 before treating any of the integration mechanics below as already working.
 
 ---
@@ -189,9 +189,13 @@ Everything in this section is read directly from the code, not inferred. Section
 
 The repo is React 19 + Vite + Tailwind, scaffolded through Google AI Studio (`vite.config.ts` still has an "HMR is disabled in AI Studio" comment; `.env.example` only defines `GEMINI_API_KEY` and `APP_URL`, both AI Studio boilerplate, neither used anywhere in `src/`). A full-repo search for `airtable`, `webhook`, `sendr`, or a bare `fetch(` call returns nothing. Every contractor record lives in a hardcoded array in `src/data/contractors.ts`. **This is a front-end visual prototype, not a system with a backend to wire up incorrectly — there's no backend at all yet.** Whoever builds the actual Airtable connection is starting from zero on that half of the work, not adjusting something that exists.
 
-### 9.2 The manual-check interaction model exists as UI, but isn't wired into the app
+### 9.2 The manual-check interaction model exists as UI, but is now permanently out of scope
 
-`EditRecordModal.tsx` is a genuinely well-built form — trade/legal name, address, cert number, account status, BIN, registry status, both expiry dates — and it's the closest real answer to "where does data entry happen" (pressure-test blocker #2). But it's **never imported or rendered by `App.tsx`**. There's no button, no state, no path to reach it in the running app. Its `onSave` handler only calls `setContractors(...)`, local React state with no persistence — so even once it's wired in, edits currently vanish on refresh. Two separate gaps, not one: (1) connect the form to the UI, (2) connect the form to a backend.
+`EditRecordModal.tsx` is a genuinely well-built form — trade/legal name, address, cert number, account status, BIN, registry status, both expiry dates. It was the closest real answer to "where does data entry happen" (pressure-test blocker #2), and it's **never imported or rendered by `App.tsx`** — no button, no state, no path to reach it in the running app. Its `onSave` handler only calls `setContractors(...)`, local React state with no persistence.
+
+**Resolved:** this stays disconnected, by decision, not by accident of being unfinished. No edit entry point will ever be wired into this front end — corrections happen directly in the Airtable dashboard, outside this repo's scope. The "two gaps" this section used to describe (1: connect the form to the UI, 2: connect the form to a backend) are both moot; neither will be closed.
+
+**Verified in a later pass:** `App.tsx` already contains `handleSaveRecord` and `handleResetToDefault`, fully implemented and matching `EditRecordModal`'s `onSave`/`onResetToDefault` prop signatures exactly — but both are dead code today, called by nothing, and will remain so. Confirmed by a repo-wide grep for `EditRecordModal`: it appears only in its own definition file (`src/components/EditRecordModal.tsx`) and in this document's prose — zero imports, zero usage anywhere else. Whether `EditRecordModal.tsx` and these two handlers should be deleted outright or left in place clearly marked as dead/out-of-scope code is a separate, still-open question — see Section 10.
 
 ### 9.3 The data model diverges from Sections 3–4 in specific, concrete ways
 
@@ -212,7 +216,15 @@ The repo is React 19 + Vite + Tailwind, scaffolded through Google AI Studio (`vi
 
 `WhatHappensNext.tsx` displays `record.provenanceHash` under a shield-check icon labeled "Verified ONBIS & WSIB Data." It's a raw string copied from mock data — no hashing, no signature, no verification logic exists anywhere in the repo. Shipping this as-is shows leads and GCs a cryptographic-looking authenticity claim that verifies nothing, which cuts directly against the project's own established guardrail against overclaiming. This is worth treating as a real risk to resolve before launch, not a cosmetic detail.
 
-### 9.6 What's already right, worth keeping
+### 9.6 There is no router and no per-record URL — a gap that precedes the edit-access question, not one alongside it
+
+`src/main.tsx` mounts `<App />` directly. No routing library is present (`react-router` or equivalent is not a dependency, and no route files exist). Which record is shown is driven entirely by an in-memory `selectedRecordId` React state variable, set via a `<select>` dropdown in `Header.tsx` — there is no per-record URL of any kind.
+
+This directly contradicts how Sections 3.2 and 4 describe the app: `Results Page Token` is documented as "`RECORD_ID()`, used only for the public results page URL" — i.e., the design assumes each record resolves to its own URL (`.../r/<token>`, or similar), which a lead or GC would land on individually. **That URL-per-record model does not exist in this codebase.** Today, the app is a single page holding all sample records in memory, switchable via a dropdown, not a set of individually-addressable public pages.
+
+**Flagging this as needing resolution before, not after, Section 10 item 1 (edit-access).** They're the same underlying architecture decision, not two separate ones: "who can open the edit form" only has a stable answer once "what is the unit of access to a record" is settled. If this stays a single in-memory-state app, there is no meaningful per-record boundary to gate at all — an edit control is either visible to everyone who loads the page or to no one, full stop. If a token-per-record URL model gets built (as Sections 3–4 already assume), edit-access could instead be scoped per URL/token, which is a materially different and more granular answer. Deciding edit-access first, without deciding this, risks answering a question whose shape is about to change.
+
+### 9.7 What's already right, worth keeping
 
 The legal disclaimer copy in `WhatHappensNext.tsx` — "this is not legal advice... not a guarantee of any payment or bid outcome... For anything beyond record-keeping, we'll point you to the right professional" — is careful and correctly scoped, consistent with established copy guardrails. Design tokens (Iron Charcoal `#1B2126`, Terracotta Rust `#C1501C`, Forest `#2F6B4F`) match the established brand system exactly. Neither needs rework.
 
@@ -220,10 +232,13 @@ The legal disclaimer copy in `WhatHappensNext.tsx` — "this is not legal advice
 
 ## 10. Decisions Needed From You Before Build Continues
 
-Item 1 from the original list is resolved by Section 9 — no longer a decision, a confirmed fact. What's actually open now:
+Item 1 from the original list is resolved by Section 9 — no longer a decision, a confirmed fact.
 
-1. **Auth/edit-access model** — once `EditRecordModal` gets wired into the running app, who can reach it? Right now the answer is "nobody, because it isn't connected to anything" — but that's an accident of it being unfinished, not a decision. This needs an actual answer before it's wired in, not after.
-2. **Whether an internal staff queue-management tool is still wanted at all**, separate from this public page. This repo doesn't provide one and shows no sign of growing into one — confirm whether that's still a real, separate build item or whether it's been deprioritized in favor of getting the public page connected first.
-3. **The concrete interest-signal definition** for Section 5.3 (tag change / reply / booked call / other) — still open, unrelated to the repo findings.
-4. **Locate or re-upload `Airtable_Softr_Build_Specification.md`** if it exists, so Section 3's field list can be completed against the primary source.
-5. **Resolve the `provenanceHash` claim (9.5)** — remove it, or build the verification it implies, before this is shown to a real lead or GC.
+**Also now resolved:** who can reach the edit form, and whether a separate internal staff tool exists — previously listed as two items, but decided as one call. No edit capability belongs in this front end, in any form, ever — not gated, not flagged, absent entirely. Corrections happen directly in the Airtable dashboard, which is outside this repo's scope. There is no separate internal staff tool being built either; Airtable's own dashboard is that tool. See Section 1 and Section 9.2 for how this reads through the rest of the document.
+
+What's actually open now:
+
+1. **Delete or mark dead code?** `EditRecordModal.tsx` and the now-permanently-unused `handleSaveRecord`/`handleResetToDefault` handlers in `App.tsx` (Section 9.2) will never be wired in, per the resolution above — but whether to delete them outright or leave them in place clearly marked as dead/out-of-scope code hasn't been decided. Not answered here; the files are untouched pending your call.
+2. **The concrete interest-signal definition** for Section 5.3 (tag change / reply / booked call / other) — still open, unrelated to the repo findings.
+3. **Locate or re-upload `Airtable_Softr_Build_Specification.md`** if it exists, so Section 3's field list can be completed against the primary source.
+4. **Resolve the `provenanceHash` claim (9.5)** — remove it, or build the verification it implies, before this is shown to a real lead or GC.
