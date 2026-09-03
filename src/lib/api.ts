@@ -1,5 +1,5 @@
 // Client-side shape of GET /api/records/:token's response. Kept as a separate, hand-written
-// mirror of api/_lib/airtable.ts's ComplianceRecordResult rather than a cross-import, so the
+// mirror of api/lib/airtable.ts's ComplianceRecordResult rather than a cross-import, so the
 // frontend bundle never pulls in anything from the server-only api/ directory. If the proxy's
 // response shape changes, this must be updated to match.
 

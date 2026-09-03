@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { fetchComplianceRecord, isValidToken } from '../_lib/airtable';
+import { fetchComplianceRecord, isValidToken } from '../lib/airtable';
 
 // GET /api/records/:token — the only way the frontend ever touches Compliance Records data.
 // The Airtable PAT lives in this function's environment only; it is never sent to the client.
