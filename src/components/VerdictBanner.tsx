@@ -15,10 +15,7 @@ export const VerdictBanner: React.FC<VerdictBannerProps> = ({ verdict }) => {
       {/* Left indicator spine */}
       <span
         className="w-[5px] shrink-0 self-stretch block"
-        style={{
-          background: verdict.spine,
-          backgroundColor: verdict.spine.includes('gradient') ? '#DCE3E3' : undefined
-        }}
+        style={{ background: verdict.spine }}
         aria-hidden="true"
       />
 
