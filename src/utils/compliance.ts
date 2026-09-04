@@ -244,11 +244,11 @@ const VERDICT_COPY: Record<Severity, Omit<VerdictStyle, 'nextStep'> & { nextStep
   },
   lapsed: {
     word: 'Lapsed',
-    bg: '#F3DCCB',
-    spine: '#C1501C',
-    fg: '#9C3E14',
-    line: 'A record has already expired and reads that way to anyone checking.',
-    nextStep: 'This certificate or registration has passed its expiration cutoff. Work sites and general contractors pulling this record will see a non-compliant status.',
+    bg: '#EAEEEE',
+    spine: '#4C5A67',
+    fg: '#4C5A67',
+    line: "The last verification on file has expired, so current status can't be confirmed.",
+    nextStep: "This business was checked previously, but the certificate or registration window has since closed. A fresh check is needed to confirm current status — that's what would happen next.",
   },
   flag: {
     word: 'Action needed',
