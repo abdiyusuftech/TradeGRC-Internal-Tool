@@ -77,7 +77,11 @@ function getCorporateExpiryTier(days: number | null): ExpiryTier | null {
 function getExpiryTierPill(tier: ExpiryTier): PillStyle {
   switch (tier) {
     case 'lapsed':
-      return { bg: '#F3DCCB', fg: '#9C3E14', pip: '#C1501C', label: 'LAPSED' };
+      // Gray, not orange: a stale expiry date means "we don't currently know," not "we found
+      // something bad" — reusing 'flag'/'flagged''s orange would render an unverified record
+      // identically to a genuinely confirmed non-compliant one. Section 8.2's three-way scheme
+      // treats this as inconclusive, same gray as 'watch'/pending states.
+      return { bg: '#DCE3E3', fg: '#4C5A67', pip: '#4C5A67', label: 'RECHECK NEEDED' };
     case 'flag':
       return { bg: '#F3DCCB', fg: '#9C3E14', pip: '#C1501C', label: 'ADDRESS NOW' };
     case 'watch':
@@ -87,9 +91,11 @@ function getExpiryTierPill(tier: ExpiryTier): PillStyle {
   }
 }
 
-function formatExpiryCopy(days: number | null, tier: ExpiryTier): string {
+function formatExpiryCopy(days: number | null, tier: ExpiryTier, expiryISO: string | null): string {
   if (days === null) return 'no expiry date on file.';
-  if (tier === 'lapsed') return 'that date has passed.';
+  if (tier === 'lapsed') {
+    return `Valid only through ${expiryISO ?? 'the stated date'}, which has since passed — current status needs rechecking.`;
+  }
   if (tier === 'flag') return `${days} days left; renewal is not automatic.`;
   if (tier === 'watch') return `${days} days left, close enough to watch.`;
   const yrs = days / 365;
@@ -154,7 +160,7 @@ function buildField(
     category,
     rawValue: status,
     pill: getExpiryTierPill(tier),
-    copy: formatExpiryCopy(days, tier),
+    copy: formatExpiryCopy(days, tier, expiryISO),
     footnote,
     hasExpiryDate: days !== null,
   };
@@ -216,7 +222,7 @@ function fieldSeverity(field: FieldDisplay): Severity {
   if (field.category === 'flagged') return 'flag';
   // category === 'clear': read the tier back off the pill label, since FieldDisplay doesn't carry it directly.
   switch (field.pill?.label) {
-    case 'LAPSED':
+    case 'RECHECK NEEDED':
       return 'lapsed';
     case 'ADDRESS NOW':
       return 'flag';
