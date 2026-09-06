@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Routes, Route, useParams } from 'react-router-dom';
+import { Routes, Route, Link, useParams } from 'react-router-dom';
 import { ComplianceRecordView } from './types';
 import { fetchComplianceRecord } from './lib/api';
 import { buildComplianceRecordView, buildOverallVerdict } from './utils/compliance';
@@ -9,10 +9,12 @@ import { VerdictBanner } from './components/VerdictBanner';
 import { StatusBadges } from './components/StatusBadges';
 import { RecordPanels } from './components/RecordPanels';
 import { WhatHappensNext } from './components/WhatHappensNext';
+import { SearchModal } from './components/SearchModal';
 
 export default function App() {
   return (
     <Routes>
+      <Route path="/" element={<HomePage />} />
       <Route path="/r/:token" element={<RecordPage />} />
       <Route path="*" element={<NoTokenPage />} />
     </Routes>
@@ -47,6 +49,33 @@ function NoTokenPage() {
           followed a link here and landed on this page instead, the link may be incomplete or out of
           date.
         </p>
+        <p className="text-[13px] text-[#4C5A67] mt-5">
+          <Link to="/" className="underline underline-offset-2 hover:text-[#1B2126]">
+            Search for a business instead
+          </Link>
+        </p>
+      </div>
+    </PageShell>
+  );
+}
+
+// CLAUDE.md Section 6.3: self-search lives on this standalone home page — not embedded in the
+// per-record page's nav — so a lead's own results page doesn't read as a standing invitation to go
+// check other businesses.
+function HomePage() {
+  return (
+    <PageShell tradeName="TradeGRC">
+      <div className="pt-14 sm:pt-20 max-w-[640px] mx-auto">
+        <h1 className="font-['Archivo'] font-extrabold text-[22px] sm:text-[26px] text-[#1B2126] text-center">
+          Check a business&apos;s compliance record
+        </h1>
+        <p className="text-[14px] text-[#4C5A67] leading-[1.6] mt-3 text-center">
+          Search by trade or business name to see its WSIB and corporate standing. Most searches
+          won&apos;t have a record yet — if we don&apos;t have one, we&apos;ll start looking.
+        </p>
+        <div className="mt-7">
+          <SearchModal />
+        </div>
       </div>
     </PageShell>
   );
@@ -169,6 +198,12 @@ function RecordPage() {
       <StatusBadges wsibField={view.wsib.field} corporateField={view.corporate.field} />
       <RecordPanels record={view} onCopyText={handleCopyText} copiedLabel={copiedLabel} />
       <WhatHappensNext verdict={verdict} />
+
+      <p className="mt-6 text-[13px] text-[#4C5A67] no-print">
+        <Link to="/" className="underline underline-offset-2 hover:text-[#1B2126]">
+          Looking to check another business? Search here
+        </Link>
+      </p>
 
       {copiedLabel && (
         <div className="fixed bottom-6 right-6 z-50 bg-[#1B2126] text-white font-mono text-[12px] px-3.5 py-2 rounded shadow-lg border border-[#3A454E] flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-150">

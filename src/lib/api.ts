@@ -51,3 +51,33 @@ export async function fetchComplianceRecord(token: string): Promise<FetchComplia
     return { kind: 'error', message: err instanceof Error ? err.message : 'Network error' };
   }
 }
+
+// Client-side mirror of POST /api/search's response shape (CLAUDE.md Section 6.3). Same
+// hand-written-mirror rationale as above — never importing from api/.
+export interface SelfSearchMatch {
+  token: string;
+  tradeName: string;
+  address: string | null;
+}
+
+export type SelfSearchResult =
+  | { kind: 'ok'; matches: SelfSearchMatch[] }
+  | { kind: 'error'; message: string };
+
+export async function searchCompliance(tradeName: string, jurisdiction: string): Promise<SelfSearchResult> {
+  try {
+    const res = await fetch('/api/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tradeName, jurisdiction }),
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) {
+      const message = body && typeof body.error === 'string' ? body.error : `Search failed (${res.status})`;
+      return { kind: 'error', message };
+    }
+    return { kind: 'ok', matches: (body as { matches: SelfSearchMatch[] }).matches };
+  } catch (err) {
+    return { kind: 'error', message: err instanceof Error ? err.message : 'Network error' };
+  }
+}
