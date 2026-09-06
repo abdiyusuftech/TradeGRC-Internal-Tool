@@ -24,9 +24,11 @@ If you've already read an earlier version of this file (as `CLAUDE.md` in the re
 - **Section 9.3's `classSubclass` finding is now resolved, not just noted.** It exists only inside the disconnected `ContractorRecord` type alongside `EditRecordModal` — confirmed dead code, not "ahead of" anything.
 - **The connection-mechanism item in Section 11 — the single biggest open item since this document's first review — is resolved.** A base-scoped, read-only Airtable PAT lives in Vercel's environment only, never reaches the client bundle, and every fetch is real-time per request against the live record.
 - **A multi-jurisdiction display bookmark is added (Section 8.4)** — not urgent, Ontario is still the only active jurisdiction, but the actual code-level gap (hardcoded logos *and* hardcoded panel titles, not just an icon) is recorded now so it isn't rediscovered from scratch later.
-- **Section 6.3 now carries a marked recommendation, not a decision, on self-search's page architecture** — whether it belongs standalone rather than on the personalized results page itself, with the reasoning laid out and flagged as needing confirmation.
+- **Section 6.3 carried a marked recommendation, not a decision, on self-search's page architecture at the time this bullet was written** — since superseded by direct confirmation; see the entry below.
 - **Section 9.2 is corrected, not just updated:** the `handleSaveRecord`/`handleResetToDefault` handlers this document previously said were dead-but-present no longer exist in the codebase at all — removed as a byproduct of the real-data rewrite, not by a deliberate decision about them specifically. Only `EditRecordModal.tsx` itself remains.
 - **A full end-to-end reread of this document surfaced two real problems that incremental edits had missed:** Section 7 (`Quadrant Tag`) still framed a question as open that had already been explicitly decided — resolved now, and removed from Section 12. Section 8.2 stated color-coding "hasn't been implemented yet," directly contradicting Section 9.4 a few paragraphs later — corrected, and a third round of fixes (the `RECHECK NEEDED` relabel/recolor, the verdict-banner copy correction, and an unrelated spine-rendering bug affecting all seven tiers) that had never been documented anywhere is now recorded in 8.2. Two smaller issues were also fixed: a citation pointing to a section that didn't actually contain the claimed evidence, and a stale "one real value" claim about `Jurisdiction` now that a second, stray test value is known to exist.
+- **Self-search is now fully specified, not just a confirmed intent with open sub-questions.** Page architecture, the matching rule (deliberately strict — exact or bidirectional prefix, jurisdiction-scoped, never fuzzy — and why), the new write-path requirement, and actual copy for both new UI states are all in Section 6.3 now. A real field, `Entry Channel` (`fldHyu4DoQwsSSSuS`), was created live in Airtable specifically for this — not a placeholder pending future creation.
+- **Three more items resolved in the same pass, at their source sections, not just in a summary list:** `EditRecordModal.tsx` should be deleted, not marked dead (Section 1.3, Section 9.2). `provenanceHash`'s removal is confirmed as the final answer, since the real certificate/registry-reference verification anchors it was meant to be replaced by already render live (Section 9.5). The `Compliance Records`-only scope boundary is now confirmed by direct statement, not just inference from the original spec (Section 1.4). Section 12 is down to a single genuine open item — queue-priority ordering, a business tradeoff, not a technical one.
 
 ---
 
@@ -48,7 +50,7 @@ This has been underspecified in every prior version of this document, and it mat
 
 ### 1.3 No edit capability belongs in this front end, in any form, ever — permanently resolved
 
-This was an open question in earlier work; it is now closed by explicit decision, not by default. **Corrections to compliance data happen directly in the Airtable dashboard. That is outside this repository's scope entirely.** Not gated, not flagged with a "no access control yet" notice — the capability is absent. `EditRecordModal.tsx` (see Section 9) is permanently out of scope and must not be wired in under any circumstance. Whether the file should be deleted outright or left in place marked as dead code is still open — see Section 12.
+This was an open question in earlier work; it is now closed by explicit decision, not by default. **Corrections to compliance data happen directly in the Airtable dashboard. That is outside this repository's scope entirely.** Not gated, not flagged with a "no access control yet" notice — the capability is absent. `EditRecordModal.tsx` (see Section 9) is permanently out of scope and must not be wired in under any circumstance. **The file itself should be deleted outright, not left in place marked as dead code** — reversible via git history if ever needed again, and dead code sitting in the repo has already caused real confusion once this session.
 
 **A distinction worth holding onto precisely, since it's easy to conflate with the point above:** self-search (1.1, 5.3) is not editing. It's *creating a lead-interest signal and, where no record exists yet, a new queued record* — a fundamentally different action from *correcting existing compliance findings*. Do not read "no edit, ever" as blocking self-search. They are different capabilities answering different questions.
 
@@ -56,12 +58,12 @@ This was an open question in earlier work; it is now closed by explicit decision
 
 ### 1.4 Scope boundary — confirmed, not just inferred
 
-This front end's connection to Airtable should be scoped to the `Compliance Records` table only. The live base contains six other tables — `Clients`, `Projects`, `Documents`, `Alerts`, `Deliverables`, `Jurisdictions` — representing the entire post-sale Monitoring product and a genuine multi-jurisdiction expansion framework. None of it is this front end's concern. This is now confirmed, not assumed: the original Airtable implementation spec (see Section 10) explains that `Compliance Records`' own `Jurisdiction` field was added purely as forward-compatible scaffolding for a future beyond Ontario, not as a sign this pipeline connects to the separate, richer `Jurisdictions` table that actually serves `Clients`/`Projects`. The two are structurally unrelated.
+This front end's connection to Airtable should be scoped to the `Compliance Records` table only. The live base contains six other tables — `Clients`, `Projects`, `Documents`, `Alerts`, `Deliverables`, `Jurisdictions` — representing the entire post-sale Monitoring product and a genuine multi-jurisdiction expansion framework. None of it is this front end's concern. This is now confirmed twice over, not assumed: the original Airtable implementation spec (see Section 10) explains that `Compliance Records`' own `Jurisdiction` field was added purely as forward-compatible scaffolding for a future beyond Ontario, not as a sign this pipeline connects to the separate, richer `Jurisdictions` table that actually serves `Clients`/`Projects` — and separately, this was explicitly confirmed directly: only the fields scraped from the corporate good-standing and workplace-safety checks are needed, nothing from the post-sale tables.
 
 ### 1.5 What this front end is explicitly NOT
 
 - **Not a client-facing dashboard** in the sense TradeGRC's positioning prohibits — it's a single-record, link-based lookup, not an ongoing portal a client logs into and returns to.
-- **Not a self-search tool yet.** The router, proxy, real data, and consent gating are live and verified (Section 9); self-search itself (Section 6.3) has not been built.
+- **Not a self-search tool yet.** The router, proxy, real data, and consent gating are live and verified (Section 9); self-search itself is fully specified — matching rule, write path, new field, copy (Section 6.3) — but not yet built.
 - **Not a replacement for judgment about who should see what.** See Section 8 — display logic now carries real compliance weight, not just cosmetic polish.
 
 ---
@@ -103,9 +105,9 @@ Only the **trade/operating name** exists at intake — the **legal name** is not
 
 **Front-end implication, unchanged from prior versions:** any UI representing compliance status needs a genuine third state beyond "checked" and "not checked" — *blocked, pending WSIB match* — visually and functionally distinct from *checked, nothing found*.
 
-### 3.2 The real field list — 28 fields, not 22 — with an explicit instruction for each
+### 3.2 The real field list — 29 fields, not 22 — with an explicit instruction for each
 
-The "22 fields" figure in prior versions of this document was wrong — a stale figure from a source document, never itself verified until now. The live table has 28.
+The "22 fields" figure in prior versions of this document was wrong — a stale figure from a source document, never itself verified until now. The live table had 28 as of the last full read; `Entry Channel` was added afterward specifically for self-search (Section 6.3), bringing it to 29.
 
 **Prior versions of this section explained why most fields exist but not consistently what this front end is supposed to do with each one** — an audit of the document against itself found 5 of 28 fields fully specified both ways, 10 with origin but no instruction, and 7 with neither. That gap is closed here. Every row below states an explicit instruction — one of **reads for display** (shown to the viewer), **reads for logic only** (used internally, never itself rendered), **writes to** (this app creates or updates it, doesn't just read it), **not needed by this front end** (exists for Airtable's own automations or the outreach pipeline, with no legitimate reason for a lead or GC to see it), or **open question** (genuinely unresolved, not silently decided by omission).
 
@@ -139,6 +141,7 @@ The "22 fields" figure in prior versions of this document was wrong — a stale 
 | `Results Page Token` (`fld9ineNypRhUsRUh`) | `RECORD_ID()` — the routing key (Section 4). | **Reads for logic only.** This is the URL key, not a value ever displayed to a viewer. |
 | `Quadrant Tag` (`fldBiFdD6z8E4e6qq`) | Sendr-routing signal (Section 7). | **Not needed by this front end.** Resolved, not open — see Section 7. Stays entirely Sendr's concern for script-variant selection; the front end runs its own status-and-date logic independently. |
 | `Compliance Lookup Events` (`fldvYnNUBo8MglmNR`) | Audit-log link, previously unconnected to anything. | **Writes to.** This is where self-search attempts get logged (Section 6.3) — a write target for this app, not a field it reads and displays. |
+| `Entry Channel` (`fldHyu4DoQwsSSSuS`) | New field, added specifically for self-search (Section 6.3). Single select: `Cold Outreach` (`selZ0KFQa8Wm9w2ll`), `Self-Search` (`selWyyaGdkV1vc3uW`). | **Writes to.** Set at record creation by whichever path creates the record — this app sets `Self-Search` when it creates a record on a self-search miss; the cold-outreach scraping path should set `Cold Outreach` the same way. Not itself displayed to a viewer. |
 
 **Not a field, worth stating plainly since it's easy to assume otherwise:** there is no field distinguishing *how* a record entered the pipeline — cold outreach vs. self-search. If self-search leads should be treated as warmer (Section 1.1), this needs a new field. It doesn't exist today.
 
@@ -153,7 +156,7 @@ The "22 fields" figure in prior versions of this document was wrong — a stale 
 
 **Do not use `Trade/Operating Name` or `Legal Name` as an identifier or lookup key for anything system-internal.** The legal name isn't even known at intake (Section 3.1), and trade names aren't unique across companies.
 
-**A real tension worth naming, surfaced by the self-search feature (Section 5.3):** self-search's only natural user input is a company name — that's the one thing a person searching for their own business actually knows to type. This directly conflicts with the identifier guidance above. This needs a real matching/dedup strategy before self-search is built — not "search by name and hope it's unique," which would risk creating duplicate `Compliance Records` entries for the same business. This is listed as open in Section 12, not resolved here.
+**Resolved, not open — self-search's matching approach is fully specified in Section 6.3.** Company name is still the only input a self-searcher has, and this schema still deliberately avoids trusting it as a system-internal key — the resolution is a deliberately strict, jurisdiction-scoped match (exact or bidirectional prefix, never fuzzy) rather than treating company name as a reliable key. See 6.3 for the exact rule and the reasoning behind biasing toward misses over wrong-business matches.
 
 ---
 
@@ -193,20 +196,38 @@ The `Daily Lookup Queue` view (per Section 3.2, most likely filtering on `Lookup
 
 **Deployment status:** this automation's configuration is valid but it is currently **undeployed** — switched off. Combined with there being no live Sendr endpoint, nothing here is actually running yet. The front end should represent this as "armed, not live," never as functioning end-to-end.
 
-### 6.3 Self-search — a confirmed feature, not a proposal, with real open sub-questions
+### 6.3 Self-search — fully specified, ready to build
 
-Per Section 1.1, this is a deliberate, intended feature: a visitor searching for their own business, even unsuccessfully, is a lead-capture signal worth acting on.
+Per Section 1.1, this is a deliberate, intended feature: a visitor searching for their own business, even unsuccessfully, is a lead-capture signal worth acting on. This section previously listed three real open sub-questions. All three are resolved below.
 
-**How this maps onto existing infrastructure:** the `Compliance Lookup Events` table (Section 3.2) — described as tracking "every lookup event or user interaction for auditing and improvement" — is built for exactly this and currently connects to nothing. A self-search attempt is precisely what it exists to record. If no matching `Compliance Records` entry exists, the natural move is creating one with `Lookup Status = Not Started`, which drops it directly into the same `Daily Lookup Queue` that cold-outreach leads already use — reusing the existing pipeline rather than building a parallel one.
+**Page architecture — confirmed, not just recommended.** Self-search lives on a standalone home page, with the search itself in that page's own nav — not embedded in the nav of the personalized `/r/:token` results page. The personalized page instead carries a small, deliberate text link ("Looking to check another business? Search here") rather than a persistent search box, so a lead's own results page doesn't read as a standing invitation to go check other businesses. A search result — a single match, or a selection made from a disambiguation list — routes into the same shared `/r/:token` page every other path already uses, not a separate results display. This matters beyond tidiness: a second, independent implementation of the consent-gating logic (Section 8.3) would risk quietly drifting out of sync with the one already built and verified — the exact failure pattern `Quadrant Tag` and the repo's own tier logic fell into independently, before anyone noticed either had happened.
 
-**A component already exists for this, but isn't a ready-to-reconnect starting point.** `SearchModal.tsx` was built early and, during the real-data rewiring, was deliberately disconnected from the app rather than left active — a "browse all records" directory doesn't belong on a real per-token public page, per direct instruction in that session. It currently searches the old hardcoded mock array and nothing else. When self-search gets built, treat this as a component to repurpose for querying live Airtable data, not one to simply switch back on.
+**How this maps onto existing infrastructure:** the `Compliance Lookup Events` table — built to track "every lookup event or user interaction for auditing and improvement" — currently connects to nothing. Every self-search attempt gets logged here, match or no match.
 
-**A recommendation on page architecture, not yet confirmed — flagged as such rather than silently settled:** self-search likely belongs on a standalone page, not embedded in the nav of the personalized per-token results page. Reasoning: a visible "search any business" bar on the same page a lead's personalized link points to risks diluting the "this was found specifically about you" framing, and makes it obvious this tool can check *other* businesses too — inviting exactly the competitor/back-channel-diligence exposure the consent rule (Section 8.3) exists to guard against. A separate page can still be linked to deliberately from the results page, rather than displayed as a standing invitation. This is a real product call with a defensible other side, not an obvious default — confirm before treating it as final.
+**A component already exists for this, but isn't a ready-to-reconnect starting point.** `SearchModal.tsx` was built early and, during the real-data rewiring, was deliberately disconnected — a "browse all records" directory doesn't belong on a real per-token public page. It currently searches the old hardcoded mock array and nothing else. Treat it as a component to repurpose for querying live Airtable through the new endpoint below, not one to simply switch back on.
 
-**What's genuinely still open here, not resolved by this section:**
-- **The matching/dedup strategy** (Section 4) — company name is the only input a self-searcher has, and it's the one identifier this schema deliberately avoids trusting.
-- **The entry-channel field** (Section 3.2) doesn't exist — if self-search leads should be treated as warmer than cold ones, as Section 1.1 implies, this needs to be built.
-- **What a self-searcher sees when no record exists yet** — presumably some warm, on-brand "we're working on this" state rather than a dead result, but the exact copy and behavior aren't specified here.
+**The matching strategy — deliberately strict, and here's the actual reasoning, not just the rule.** Normalized comparison (lowercase, trimmed, punctuation stripped) against `Trade/Operating Name`, using either an exact match or a bidirectional prefix match — the input is a prefix of the stored name, or the stored name is a prefix of the input — always scoped to the jurisdiction selected in the search. Deliberately not fuzzy or similarity-scored. The risk this guards against isn't a consent bypass — the gate in Section 8.3 holds regardless of match quality — it's a *wrong-business* risk: a loose match could surface a real, already-consented business's genuine findings in response to a search for an unrelated, similarly-named company. A tight match that sometimes returns nothing is safe, since "no match yet" is already an acceptable, expected outcome (Section 1.1). This deliberately trades more misses for zero wrong-business exposures.
+
+**The new field this depends on — confirmed live, not a placeholder.** `Entry Channel` (`fldHyu4DoQwsSSSuS`), single select, options `Cold Outreach` (`selZ0KFQa8Wm9w2ll`) and `Self-Search` (`selWyyaGdkV1vc3uW`). Every record created through this path gets `Self-Search`; the existing cold-outreach scraping should be updated to set `Cold Outreach` at creation too — this is not backfilled after the fact for either path.
+
+**The write path — a genuinely new requirement, not covered by anything built so far.** Every proxy built this session has been read-only. Self-search needs a new endpoint that can: (a) search live Airtable by the matching rule above; (b) on zero matches, create a new `Compliance Records` entry with `Lookup Status = Not Started`, `Entry Channel = Self-Search`, and the searched trade name and jurisdiction, which drops it directly into the existing `Daily Lookup Queue`; (c) log the attempt to `Compliance Lookup Events` regardless of outcome. This runs server-side, following the same pattern as the existing `api/records/[token].ts` proxy — never a writable credential reaching the client.
+
+**A real, manual action this requires — not something Claude Code or I can do.** The current Airtable PAT is deliberately scoped to `data.records:read` only, correct at the time since nothing needed to write. This endpoint needs `data.records:write` added to that token, or a second token scoped only to this path, created the same way the first one was — directly in Airtable's own token UI.
+
+**Abuse protection — flagged, not built.** A public endpoint that creates records has no protection today against automated spam flooding the table. Consistent with this project's pattern of observing real usage before building for a hypothetical, this is a requirement to watch once real traffic exists, not something to over-engineer now with none.
+
+**The two new UI states, with actual copy, not placeholders:**
+
+*No match found* (a new record is created quietly in the background; not shown as such to the searcher):
+> "We don't have anything on file yet for [business name] in [jurisdiction] — but we've noted this, and we'll be looking into it. Check back soon."
+
+*Multiple matches* (a disambiguation list, using only fields already established as safe to display):
+> "We found more than one match for '[search term]' in [jurisdiction]. Select your business:"
+> — each row shows `Trade/Operating Name` + `Address`, both already marked "reads for display" in Section 3.2. No new display concept needed.
+
+A single exact match with `Consent Status` not yet consented needs no new copy — it reuses the existing gated placeholder from Section 8.3 unchanged, deliberately: one consistent state for "not yet consented," regardless of how the record was reached.
+
+**One thing this surfaces that self-search doesn't resolve on its own:** `Flag Stale Records`, `Trigger Sendr Generation`, and now self-search-created records all compete for the same `Daily Lookup Queue` and the same finite daily human-check capacity. Which gets priority on a constrained day is a real operational tradeoff, not a technical one — genuinely still open, tracked in Section 12.
 
 ---
 
@@ -293,7 +314,7 @@ This section previously said there was no backend at all. That's no longer true.
 
 ### 9.2 The manual-check interaction model exists as UI, but is permanently out of scope
 
-**Corrected from an earlier claim in this document, not just updated:** `App.tsx` was completely rewritten during the real-data pass (Section 9.1). The `handleSaveRecord`/`handleResetToDefault` handlers previously documented here no longer exist anywhere in the codebase — confirmed by a repo-wide search, not just an App.tsx check. Only `EditRecordModal.tsx` itself remains, as a fully standalone file referenced nowhere else in the repo. Per Section 1.3 this stays permanently out of scope by explicit decision, not by accident. Whether the file gets deleted or left in place marked as dead code is still open — Section 12.
+**Corrected from an earlier claim in this document, not just updated:** `App.tsx` was completely rewritten during the real-data pass (Section 9.1). The `handleSaveRecord`/`handleResetToDefault` handlers previously documented here no longer exist anywhere in the codebase — confirmed by a repo-wide search, not just an App.tsx check. Only `EditRecordModal.tsx` itself remains, as a fully standalone file referenced nowhere else in the repo. Per Section 1.3 this stays permanently out of scope by explicit decision, not by accident. **The file should be deleted, not marked dead — decided, see Section 1.3.**
 
 ### 9.3 What's now resolved, and the one thing that isn't
 
@@ -312,7 +333,7 @@ Two were the originally documented display-logic bugs; two more were found durin
 
 ### 9.5 `provenanceHash` — removed, not resolved
 
-The fake "Verified ONBIS & WSIB Data" claim (a raw string with no real hashing or verification logic behind it) has been removed from `WhatHappensNext.tsx` entirely, rather than replaced with anything. That closes the immediate risk of shipping a false trust claim, but it was a decision made without an explicit sign-off — whether removal is the final answer, or whether the real certificate-number verification idea (Section 3.2) should still be built, is still open. See Section 12.
+The fake "Verified ONBIS & WSIB Data" claim (a raw string with no real hashing or verification logic behind it) has been removed from `WhatHappensNext.tsx` entirely, rather than replaced with anything. **Confirmed as the final answer, not a placeholder pending more work:** `RecordPanels.tsx` already renders the real WSIB certificate number and corporate registry reference, conditionally, whenever a record has them — an independently-checkable verification anchor was already built and live; it just wasn't visible on the specific record used to notice this gap. No further work needed here.
 
 ### 9.6 What's already right, worth keeping
 
@@ -351,22 +372,18 @@ This section exists because an original Airtable implementation spec document su
 ## 11. Known Gaps & Explicitly Out of Scope
 
 - **Automated OBR/WSIB scraping** — not part of this build. Manual, human-performed lookup remains the system of record, a deliberate decision, not an oversight.
-- **`provenanceHash`'s removal as the final answer** (9.5) — it's gone, but whether that's the actual resolution or a placeholder pending real verification (e.g., the certificate-number idea, Section 3.2) was never explicitly confirmed.
-- **Delete vs. mark-dead** for `EditRecordModal.tsx` (9.2) — the file only now, the handlers it depended on no longer exist — explicitly deferred, not decided.
 - **The Sendr webhook's exact request format** (Section 2) — the field list itself is corrected (`Trade/Operating Name`, `Legal Name`, `Phone (Match Key)`, `WSIB Status`, `Corporate Status`), but the actual request shape — auth style, JSON structure Sendr expects — can't be finalized without a live account or Sendr's own published docs.
 - **The Zapier leg** (Section 2, Section 10) — documented per the original spec, never independently verified live.
 - **The `Pending Sendr Generation` view's real, current filter** (Section 10) — flagged, attempted, not resolvable from outside Airtable's own UI.
 - **A stray "Quebec" value on one of the 9 test records' `Jurisdiction` field** (Section 3.2) — almost certainly test noise, not a real second jurisdiction. A one-time backfill to Ontario across the sparse test set is low-priority cleanup, not a design question.
 - **`Corporate Registry Reference` vs. `Business Name BIN`** — assumed genuinely distinct; never independently verified against a real corporate-only lookup.
-- **The entry-channel field** (cold outreach vs. self-search) — doesn't exist yet; needed if self-search leads should be treated as warmer, per Section 1.1's stated intent.
-- **The self-search matching/dedup strategy** (Section 4, Section 6.3) — genuinely unresolved; company name is the only available input and the one identifier this schema deliberately avoids trusting.
 - **Whether the `Deliverables` table is actually wired to anything** for the post-booking PDF/one-pager flow (Section 1.1) — flagged as a plausible fit, not confirmed populated or connected.
+- **The Airtable PAT needs a write-scope upgrade before self-search's write path (Section 6.3) can be built** — `data.records:write` added to the existing token, or a second token created for this purpose only. A manual action in Airtable's own UI, same category as the original token creation.
+- **Abuse protection on the new self-search write endpoint** (Section 6.3) — flagged, not built. Watch once real traffic exists rather than engineer against a hypothetical now.
+- **Queue-priority ordering** — `Flag Stale Records`, `Trigger Sendr Generation`, and self-search-created records all compete for the same daily human-check capacity, with nothing establishing which takes priority on a constrained day. A real operational tradeoff, not something this document or any code change resolves — see Section 12.
 
 ---
 
 ## 12. Decisions Needed From You
 
-1. **Delete vs. mark-dead** for the orphaned edit-capability code.
-2. **`provenanceHash`** — confirm removal is the final answer, or build the real certificate-number verification instead.
-3. **The self-search matching strategy** and whether/how to add an entry-channel field.
-4. **Confirm the scope boundary** (Section 1.4, `Compliance Records` only) — treated as settled based on the original spec's Jurisdiction explanation, but worth one explicit line of confirmation given how much else in this document has turned out to need correcting once actually checked.
+1. **Queue-priority ordering** (Section 6.3, Section 11) — should new leads or stale rechecks take priority when daily capacity is constrained, now that self-search adds a third competing source into the same queue. This is a business tradeoff between outreach throughput and data freshness, not a technical call — it isn't something to default through, and it's the one genuine open decision left in this document.
