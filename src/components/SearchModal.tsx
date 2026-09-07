@@ -14,6 +14,7 @@ type SearchState =
   | { kind: 'idle' }
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
+  | { kind: 'rate_limited'; message: string }
   | { kind: 'disambiguate'; matches: SelfSearchMatch[]; term: string; jurisdiction: string };
 
 export const SearchModal: React.FC = () => {
@@ -32,6 +33,10 @@ export const SearchModal: React.FC = () => {
 
     if (result.kind === 'error') {
       setState({ kind: 'error', message: result.message });
+      return;
+    }
+    if (result.kind === 'rate_limited') {
+      setState({ kind: 'rate_limited', message: result.message });
       return;
     }
     if (result.matches.length === 1) {
@@ -81,6 +86,10 @@ export const SearchModal: React.FC = () => {
 
       {state.kind === 'error' && (
         <p className="mt-3 text-[13px] text-[#9C3E14]">Something went wrong: {state.message}. Try again.</p>
+      )}
+
+      {state.kind === 'rate_limited' && (
+        <p className="mt-3 text-[13px] text-[#4C5A67]">{state.message}</p>
       )}
 
       {state.kind === 'disambiguate' && (

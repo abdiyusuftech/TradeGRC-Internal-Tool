@@ -62,6 +62,7 @@ export interface SelfSearchMatch {
 
 export type SelfSearchResult =
   | { kind: 'ok'; matches: SelfSearchMatch[] }
+  | { kind: 'rate_limited'; message: string }
   | { kind: 'error'; message: string };
 
 export async function searchCompliance(tradeName: string, jurisdiction: string): Promise<SelfSearchResult> {
@@ -72,6 +73,15 @@ export async function searchCompliance(tradeName: string, jurisdiction: string):
       body: JSON.stringify({ tradeName, jurisdiction }),
     });
     const body = await res.json().catch(() => null);
+    // Checked by HTTP status first, not just body shape — a 429 is unambiguous regardless of what
+    // the body parses to, whereas body.status is only a defensive secondary signal.
+    if (res.status === 429) {
+      const message =
+        body && typeof body.message === 'string'
+          ? body.message
+          : "You've made several searches recently. Give it a few minutes and try again.";
+      return { kind: 'rate_limited', message };
+    }
     if (!res.ok) {
       const message = body && typeof body.error === 'string' ? body.error : `Search failed (${res.status})`;
       return { kind: 'error', message };

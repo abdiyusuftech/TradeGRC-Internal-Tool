@@ -26,7 +26,24 @@ const EVENT_FIELD = {
   eventType: 'fldDmq8iGFXLU2jr2',
   outcomeNotes: 'fld5KcgINugge7g8G',
   statusAfterEvent: 'fldY1PcJ4HdqL2QhF',
+  requesterIp: 'fldpMXfKSokbxZrWU',
 } as const;
+
+// Rate limiting (added after the endpoint went live in a reachable-by-anyone preview
+// deployment with no abuse protection at all). Generous on purpose: 10 requests in 10 minutes
+// comfortably covers a real person manually trying several businesses, or working through a
+// disambiguation list, while still stopping a scripted burst within seconds of it starting.
+const RATE_LIMIT_MAX_REQUESTS = 10;
+const RATE_LIMIT_WINDOW_MINUTES = 10;
+
+// Two known, accepted gaps in this limiter, not solved here:
+// - Not atomic. Airtable's REST API has no compare-and-set primitive, so a genuine burst of
+//   near-simultaneous requests from the same IP could each read "under threshold" before any of
+//   their own log entries land, letting a short burst slip through uncounted.
+// - IP-based. Everyone behind the same NAT (an office, shared wifi, a coffee shop) shares one
+//   limit. A real false positive here would need a different identity signal (e.g. a session
+//   cookie) to fix — not attempted, since nothing suggests it's a real problem at current traffic.
+const IP_PATTERN = /^[0-9a-fA-F:.]+$/;
 
 // Matches the live Jurisdiction field's five options exactly (CLAUDE.md Section 3.2/10).
 const JURISDICTIONS = new Set(['Ontario', 'British Columbia', 'Alberta', 'Quebec', 'US']);
@@ -61,6 +78,30 @@ interface AirtableListResponse {
 function field(fields: AirtableFieldsById, id: string): string | null {
   const value = fields[id];
   return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+// Vercel's edge is the first hop that terminates the real client's TCP connection, so it sets
+// x-forwarded-for itself from the actual socket rather than trusting a client-supplied value —
+// the documented approach for Vercel's Node.js runtime is to take the first (leftmost) entry.
+// x-real-ip and the raw socket are defensive fallbacks only; on Vercel's infra the socket address
+// is normally an internal one, not the real client. Getting this wrong fails silently (every
+// event logs an empty IP, rate limiting never engages) rather than throwing, which is exactly why
+// this needs a real check against the live deployment, not just a read of the docs.
+function getClientIp(req: VercelRequest): string | null {
+  const forwardedFor = req.headers['x-forwarded-for'];
+  const forwardedValue = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
+  const fromForwarded = forwardedValue?.split(',')[0]?.trim();
+  if (fromForwarded) return fromForwarded;
+
+  const realIp = req.headers['x-real-ip'];
+  const fromRealIp = Array.isArray(realIp) ? realIp[0] : realIp;
+  if (fromRealIp) return fromRealIp.trim();
+
+  return req.socket?.remoteAddress ?? null;
+}
+
+function isPlausibleIp(ip: string): boolean {
+  return ip.length > 0 && ip.length <= 45 && IP_PATTERN.test(ip);
 }
 
 async function airtableFetch(path: string, pat: string, init?: RequestInit): Promise<Response> {
@@ -102,6 +143,24 @@ async function listCandidateRecords(pat: string, jurisdiction: string): Promise<
   return records.filter((r) => field(r.fields, RECORD_FIELD.jurisdiction) === jurisdiction);
 }
 
+// Must run before any other Airtable read or write for this request — the whole point is to stop
+// a rate-limited request before it ever touches the search-or-create logic below, not just before
+// its response goes out. Uses field names, not IDs, in the formula: field-ID-in-formula is
+// documented Airtable behavior but was only ever exercised here via the fixed field-ID keys on
+// writes, never as part of an executable ad hoc filter — the names are the proven-safe choice for
+// something that has to actually evaluate correctly on every request, not just look consistent
+// with the rest of the file.
+async function isRateLimited(pat: string, ip: string): Promise<boolean> {
+  const cutoffIso = new Date(Date.now() - RATE_LIMIT_WINDOW_MINUTES * 60_000).toISOString();
+  const formula = `AND({Requester IP} = "${ip}", IS_AFTER({Timestamp}, DATETIME_PARSE("${cutoffIso}")))`;
+  const res = await airtableFetch(
+    `${BASE_ID}/${EVENTS_TABLE_ID}?filterByFormula=${encodeURIComponent(formula)}&maxRecords=${RATE_LIMIT_MAX_REQUESTS}&pageSize=${RATE_LIMIT_MAX_REQUESTS}`,
+    pat
+  );
+  const body = (await res.json()) as AirtableListResponse;
+  return body.records.length >= RATE_LIMIT_MAX_REQUESTS;
+}
+
 async function createSelfSearchRecord(pat: string, tradeName: string, jurisdiction: string): Promise<AirtableRecord> {
   const res = await airtableFetch(`${BASE_ID}/${RECORDS_TABLE_ID}?returnFieldsByFieldId=true`, pat, {
     method: 'POST',
@@ -124,7 +183,8 @@ async function logSearchEvent(
   recordIds: string[],
   description: string,
   outcomeNotes: string,
-  statusAfterEvent: string | null
+  statusAfterEvent: string | null,
+  requesterIp: string | null
 ): Promise<void> {
   const fields: AirtableFieldsById = {
     [EVENT_FIELD.description]: description,
@@ -134,6 +194,9 @@ async function logSearchEvent(
   };
   if (statusAfterEvent) {
     fields[EVENT_FIELD.statusAfterEvent] = statusAfterEvent;
+  }
+  if (requesterIp) {
+    fields[EVENT_FIELD.requesterIp] = requesterIp;
   }
   await airtableFetch(`${BASE_ID}/${EVENTS_TABLE_ID}?returnFieldsByFieldId=true`, pat, {
     method: 'POST',
@@ -174,7 +237,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const trimmedTradeName = tradeName.trim();
   const inputNorm = normalizeName(trimmedTradeName);
 
+  const rawIp = getClientIp(req);
+  // Can't rate-limit a request we can't attribute — fails open rather than blocking everyone
+  // when the IP can't be determined at all (should not happen on Vercel; see getClientIp above).
+  const clientIp = rawIp && isPlausibleIp(rawIp) ? rawIp : null;
+
   try {
+    if (clientIp && (await isRateLimited(pat, clientIp))) {
+      res.status(429).json({
+        status: 'rate_limited',
+        message: "You've made several searches recently. Give it a few minutes and try again.",
+      });
+      return;
+    }
+
     const candidates = await listCandidateRecords(pat, jurisdiction);
     const matches: SearchMatch[] = candidates
       .filter((r) => isNameMatch(inputNorm, normalizeName(field(r.fields, RECORD_FIELD.tradeName) ?? '')))
@@ -195,7 +271,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         [created.id],
         `Self-search: "${trimmedTradeName}" in ${jurisdiction}`,
         '0 matches — new record created',
-        'Not Yet Checked'
+        'Not Yet Checked',
+        clientIp
       );
       res.status(200).json({ matches: [{ token: created.id, tradeName: trimmedTradeName, address: null }] });
       return;
@@ -206,7 +283,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       matches.map((m) => m.token),
       `Self-search: "${trimmedTradeName}" in ${jurisdiction}`,
       `${matches.length} match${matches.length === 1 ? '' : 'es'}`,
-      null
+      null,
+      clientIp
     );
     res.status(200).json({ matches });
   } catch (err) {
