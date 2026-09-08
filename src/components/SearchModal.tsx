@@ -1,133 +1,122 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { Search, X, ArrowRight } from 'lucide-react';
-import { ContractorRecord } from '../types';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Search, ArrowRight } from 'lucide-react';
+import { searchCompliance, SelfSearchMatch } from '../lib/api';
 
-interface SearchModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  contractors: ContractorRecord[];
-  onSelectContractor: (contractor: ContractorRecord) => void;
-}
+// Repurposed from an early mock-data "browse all records" modal (CLAUDE.md Section 6.3) into the
+// real self-search entry point: an inline form on the home page, not an overlay. It calls the live
+// /api/search endpoint and either navigates straight to a single match (or the record created on a
+// miss — see api/search.ts, no separate "no match" state) or shows a disambiguation list.
 
-export const SearchModal: React.FC<SearchModalProps> = ({
-  isOpen,
-  onClose,
-  contractors,
-  onSelectContractor
-}) => {
-  const [query, setQuery] = useState('');
+const JURISDICTIONS = ['Ontario', 'British Columbia', 'Alberta', 'Quebec', 'US'] as const;
 
-  // Lock scroll and handle Escape key
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+type SearchState =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'error'; message: string }
+  | { kind: 'rate_limited'; message: string }
+  | { kind: 'disambiguate'; matches: SelfSearchMatch[]; term: string; jurisdiction: string };
 
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [isOpen, onClose]);
+export const SearchModal: React.FC = () => {
+  const navigate = useNavigate();
+  const [tradeName, setTradeName] = useState('');
+  const [jurisdiction, setJurisdiction] = useState<string>('Ontario');
+  const [state, setState] = useState<SearchState>({ kind: 'idle' });
 
-  const filtered = useMemo(() => {
-    if (!query.trim()) return contractors;
-    const q = query.toLowerCase();
-    return contractors.filter(
-      (c) =>
-        c.tradeName.toLowerCase().includes(q) ||
-        c.legalName.toLowerCase().includes(q) ||
-        c.bin.includes(q) ||
-        c.reference.toLowerCase().includes(q) ||
-        c.certNumber.toLowerCase().includes(q) ||
-        c.naicsWsib.toLowerCase().includes(q)
-    );
-  }, [contractors, query]);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = tradeName.trim();
+    if (!trimmed) return;
 
-  if (!isOpen) return null;
+    setState({ kind: 'loading' });
+    const result = await searchCompliance(trimmed, jurisdiction);
+
+    if (result.kind === 'error') {
+      setState({ kind: 'error', message: result.message });
+      return;
+    }
+    if (result.kind === 'rate_limited') {
+      setState({ kind: 'rate_limited', message: result.message });
+      return;
+    }
+    if (result.matches.length === 1) {
+      navigate(`/r/${result.matches[0].token}`);
+      return;
+    }
+    setState({ kind: 'disambiguate', matches: result.matches, term: trimmed, jurisdiction });
+  };
 
   return (
-    <div 
-      className="fixed inset-0 z-50 flex items-start justify-center pt-8 sm:pt-20 px-3 sm:px-4 bg-[#1B2126]/75 backdrop-blur-[2px] overflow-y-auto"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div 
-        id="search-modal-container"
-        className="w-full max-w-xl bg-white border border-[#14212E]/20 rounded-[6px] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 my-auto sm:my-0 max-h-[85vh] flex flex-col"
-      >
-        {/* Header with Search Input */}
-        <div className="p-3.5 sm:p-4 bg-[#1B2126] text-white flex items-center gap-3 shrink-0">
-          <Search className="w-5 h-5 text-[#A3AFB8] shrink-0" />
+    <div id="self-search" className="w-full">
+      <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2.5">
+        <div className="flex-1 flex items-center gap-2.5 bg-white border border-[#14212E]/20 rounded-[6px] px-3.5 py-2.5">
+          <Search className="w-4 h-4 text-[#7C8D99] shrink-0" />
           <input
-            id="search-input-field"
+            id="self-search-input"
             type="text"
-            placeholder="Search trade name, legal name, BIN (e.g. 1001321614), or Ref..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            autoFocus
-            className="w-full bg-transparent text-white placeholder-[#7C8D99] font-mono text-[13px] sm:text-[13.5px] focus:outline-none"
+            placeholder="Search by trade or business name…"
+            value={tradeName}
+            onChange={(e) => setTradeName(e.target.value)}
+            className="w-full bg-transparent text-[#16222C] placeholder-[#7C8D99] text-[14px] focus:outline-none"
           />
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close search modal"
-            className="p-1.5 rounded text-[#A3AFB8] hover:text-white hover:bg-[#273037] transition-colors touch-manipulation"
-          >
-            <X className="w-5 h-5" />
-          </button>
         </div>
 
-        {/* Results List */}
-        <div className="overflow-y-auto divide-y divide-[#14212E]/10 p-2 flex-1">
-          {filtered.length === 0 ? (
-            <div className="p-6 text-center text-[#7C8D99] font-mono text-[13px]">
-              No public records matched &quot;{query}&quot;. Try searching by BIN, trade name, or trade category.
-            </div>
-          ) : (
-            filtered.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  onSelectContractor(item);
-                  onClose();
-                }}
-                className="w-full text-left p-3 sm:p-3.5 hover:bg-[#EAEEEE]/60 active:bg-[#EAEEEE] rounded transition-colors flex items-center justify-between gap-3 group touch-manipulation"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-['Archivo'] font-bold text-[14.5px] sm:text-[15px] text-[#1B2126] group-hover:text-[#9C3E14] truncate">
-                      {item.tradeName}
-                    </span>
-                    <span className="font-mono text-[10.5px] sm:text-[11px] uppercase bg-[#DCE3E3] text-[#4C5A67] px-1.5 py-0.5 rounded">
-                      Ref {item.reference}
-                    </span>
-                  </div>
-                  <div className="text-[12.5px] sm:text-[13px] text-[#4C5A67] mt-0.5 truncate">
-                    {item.legalName} &middot; <span className="font-mono">{item.bin}</span>
-                  </div>
-                  <div className="text-[11.5px] sm:text-[12px] text-[#7C8D99] mt-0.5 font-mono truncate">
-                    {item.naicsWsib}
-                  </div>
-                </div>
+        <select
+          id="self-search-jurisdiction"
+          value={jurisdiction}
+          onChange={(e) => setJurisdiction(e.target.value)}
+          className="bg-white border border-[#14212E]/20 rounded-[6px] px-3 py-2.5 text-[13.5px] text-[#16222C] focus:outline-none"
+        >
+          {JURISDICTIONS.map((j) => (
+            <option key={j} value={j}>
+              {j}
+            </option>
+          ))}
+        </select>
 
+        <button
+          id="self-search-submit"
+          type="submit"
+          disabled={state.kind === 'loading' || tradeName.trim().length === 0}
+          className="inline-flex items-center justify-center gap-1.5 bg-[#1B2126] hover:bg-[#273037] disabled:opacity-50 text-white font-mono text-[12.5px] tracking-[.05em] px-4 py-2.5 rounded-[6px] transition-colors touch-manipulation"
+        >
+          {state.kind === 'loading' ? 'Searching…' : 'Search'}
+        </button>
+      </form>
+
+      {state.kind === 'error' && (
+        <p className="mt-3 text-[13px] text-[#9C3E14]">Something went wrong: {state.message}. Try again.</p>
+      )}
+
+      {state.kind === 'rate_limited' && (
+        <p className="mt-3 text-[13px] text-[#4C5A67]">{state.message}</p>
+      )}
+
+      {state.kind === 'disambiguate' && (
+        <div id="self-search-disambiguation" className="mt-4 bg-white border border-[#14212E]/15 rounded-[6px] overflow-hidden">
+          <p className="px-3.5 py-2.5 text-[13px] text-[#4C5A67] border-b border-[#14212E]/10">
+            We found more than one match for &quot;{state.term}&quot; in {state.jurisdiction}. Select your business:
+          </p>
+          <div className="divide-y divide-[#14212E]/10">
+            {state.matches.map((m) => (
+              <button
+                key={m.token}
+                type="button"
+                onClick={() => navigate(`/r/${m.token}`)}
+                className="w-full text-left px-3.5 py-3 hover:bg-[#EAEEEE]/60 active:bg-[#EAEEEE] transition-colors flex items-center justify-between gap-3 group touch-manipulation"
+              >
+                <div className="min-w-0">
+                  <div className="font-['Archivo'] font-bold text-[14.5px] text-[#1B2126] group-hover:text-[#9C3E14] truncate">
+                    {m.tradeName}
+                  </div>
+                  {m.address && <div className="text-[12.5px] text-[#4C5A67] mt-0.5 truncate">{m.address}</div>}
+                </div>
                 <ArrowRight className="w-4 h-4 text-[#7C8D99] group-hover:text-[#9C3E14] group-hover:translate-x-0.5 transition-transform shrink-0" />
               </button>
-            ))
-          )}
+            ))}
+          </div>
         </div>
-
-        {/* Footer info */}
-        <div className="p-3 bg-[#EAEEEE] border-t border-[#14212E]/10 flex items-center justify-between text-[10.5px] sm:text-[11px] font-mono uppercase text-[#4C5A67] shrink-0">
-          <span className="truncate">ONBIS &amp; WSIB database</span>
-          <span className="shrink-0">{filtered.length} records available</span>
-        </div>
-      </div>
+      )}
     </div>
   );
 };

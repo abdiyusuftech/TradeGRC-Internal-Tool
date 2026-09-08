@@ -51,3 +51,43 @@ export async function fetchComplianceRecord(token: string): Promise<FetchComplia
     return { kind: 'error', message: err instanceof Error ? err.message : 'Network error' };
   }
 }
+
+// Client-side mirror of POST /api/search's response shape (CLAUDE.md Section 6.3). Same
+// hand-written-mirror rationale as above — never importing from api/.
+export interface SelfSearchMatch {
+  token: string;
+  tradeName: string;
+  address: string | null;
+}
+
+export type SelfSearchResult =
+  | { kind: 'ok'; matches: SelfSearchMatch[] }
+  | { kind: 'rate_limited'; message: string }
+  | { kind: 'error'; message: string };
+
+export async function searchCompliance(tradeName: string, jurisdiction: string): Promise<SelfSearchResult> {
+  try {
+    const res = await fetch('/api/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tradeName, jurisdiction }),
+    });
+    const body = await res.json().catch(() => null);
+    // Checked by HTTP status first, not just body shape — a 429 is unambiguous regardless of what
+    // the body parses to, whereas body.status is only a defensive secondary signal.
+    if (res.status === 429) {
+      const message =
+        body && typeof body.message === 'string'
+          ? body.message
+          : "You've made several searches recently. Give it a few minutes and try again.";
+      return { kind: 'rate_limited', message };
+    }
+    if (!res.ok) {
+      const message = body && typeof body.error === 'string' ? body.error : `Search failed (${res.status})`;
+      return { kind: 'error', message };
+    }
+    return { kind: 'ok', matches: (body as { matches: SelfSearchMatch[] }).matches };
+  } catch (err) {
+    return { kind: 'error', message: err instanceof Error ? err.message : 'Network error' };
+  }
+}
